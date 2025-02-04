@@ -1,3 +1,5 @@
+# progress_tracker.py
+
 from dataclasses import dataclass
 from threading import Lock
 from typing import Optional
@@ -15,6 +17,19 @@ class ProgressTracker:
         self._total = total_items
         self._current = 0
         self._status = ""
+
+    @property
+    def total(self) -> int:
+        return self._total
+    
+    @total.setter
+    def total(self, value: int):
+        with self._lock:
+            self._total = value
+
+    @property
+    def current(self) -> int:
+        return self._current
 
     def update(self, increment: int = 1, status: Optional[str] = None) -> None:
         """

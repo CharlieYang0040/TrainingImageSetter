@@ -1,3 +1,5 @@
+# main.py
+
 import argparse
 from pathlib import Path
 import logging
@@ -20,11 +22,10 @@ def main():
     parser.add_argument('input_path', type=str, help='입력 이미지 폴더 경로')
     parser.add_argument('output_path', type=str, help='출력 폴더 경로')
     parser.add_argument('--mode', type=str, 
-                       choices=['copy_only', 'copy_and_text', 'text_only'],
+                       choices=['copy_only', 'copy_and_text', 'text_only', 'check_duplicates'],
                        default='copy_and_text', help='처리 모드 선택')
     parser.add_argument('--workers', type=int, default=4, help='작업자 스레드 수 (기본값: 4)')
     parser.add_argument('--debug', action='store_true', help='디버그 모드 활성화')
-    parser.add_argument('--check-duplicates', action='store_true', help='중복 이미지 검사 실행')
     
     # 리사이즈 관련 인자
     parser.add_argument('--resize', type=int, choices=[512, 1024], 
@@ -39,15 +40,6 @@ def main():
     setup_logging(args.debug)
     
     try:
-        if args.check_duplicates:
-            checker = ImageDuplicateChecker()
-            duplicates = checker.find_duplicates(Path(args.input_path))
-            checker.print_duplicates(duplicates)
-            if duplicates:
-                response = input("\n처리를 계속하시겠습니까? (y/n): ")
-                if response.lower() != 'y':
-                    return
-
         processor = ProcessManager(
             input_path=Path(args.input_path),
             output_path=Path(args.output_path),

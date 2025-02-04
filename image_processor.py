@@ -1,3 +1,5 @@
+# image_processor.py
+
 from pathlib import Path
 from shutil import copy2
 from typing import List, Set, Optional
