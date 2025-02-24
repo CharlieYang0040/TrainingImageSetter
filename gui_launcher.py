@@ -8,6 +8,7 @@ from image_duplicate_checker import ImageDuplicateChecker
 from main import ProcessManager, ProcessingMode
 from progress_tracker import ProgressTracker
 import threading
+import os
 
 class LoraPreprocessorGUI:
     def __init__(self, root):
@@ -58,6 +59,8 @@ class LoraPreprocessorGUI:
                        variable=self.mode, value="check_duplicates").grid(row=3, column=0, sticky="w")
         ttk.Radiobutton(mode_frame, text="이름 변경만", 
                        variable=self.mode, value="rename_only").grid(row=4, column=0, sticky="w")
+        ttk.Radiobutton(mode_frame, text="이미지 크롤링", 
+                       variable=self.mode, value="crawl_images").grid(row=5, column=0, sticky="w")
         
         # 리사이즈 옵션
         resize_frame = ttk.LabelFrame(self.root, text="리사이즈 옵션", padding=10)
@@ -194,9 +197,62 @@ class LoraPreprocessorGUI:
         # 초기 상태 설정
         update_all_options()
         
+        # 크롤링 옵션 프레임 추가
+        crawling_frame = ttk.LabelFrame(self.root, text="크롤링 옵션", padding=10)
+        crawling_frame.grid(row=6, column=0, padx=10, pady=5, sticky="ew")
+
+        # 검색 엔진 선택
+        self.use_google = tk.BooleanVar(value=True)
+        self.use_naver = tk.BooleanVar(value=True) 
+        self.use_artstation = tk.BooleanVar(value=False)
+
+        ttk.Checkbutton(crawling_frame, text="Google 검색",
+                        variable=self.use_google).grid(row=0, column=0, sticky="w", padx=5)
+        ttk.Checkbutton(crawling_frame, text="Naver 검색", 
+                        variable=self.use_naver).grid(row=1, column=0, sticky="w", padx=5)
+        ttk.Checkbutton(crawling_frame, text="ArtStation 검색",
+                        variable=self.use_artstation).grid(row=2, column=0, sticky="w", padx=5)
+
+        # 크롤링 상세 옵션
+        crawl_options_frame = ttk.Frame(crawling_frame)
+        crawl_options_frame.grid(row=0, column=1, rowspan=3, padx=10)
+
+        self.full_resolution = tk.BooleanVar(value=False)
+        self.face_search = tk.BooleanVar(value=False)
+        self.skip_existing = tk.BooleanVar(value=True)
+        self.filter_stock = tk.BooleanVar(value=False)
+        self.thread_count = tk.StringVar(value="4")
+        self.image_limit = tk.StringVar(value="0")
+
+        ttk.Checkbutton(crawl_options_frame, text="고해상도 이미지 다운로드",
+                        variable=self.full_resolution).grid(row=0, column=0, sticky="w")
+        ttk.Checkbutton(crawl_options_frame, text="얼굴 검색 모드",
+                        variable=self.face_search).grid(row=1, column=0, sticky="w")
+        ttk.Checkbutton(crawl_options_frame, text="기존 파일 건너뛰기",
+                        variable=self.skip_existing).grid(row=2, column=0, sticky="w")
+        ttk.Checkbutton(crawl_options_frame, text="스톡 이미지 필터링",
+                        variable=self.filter_stock).grid(row=3, column=0, sticky="w")
+
+        thread_frame = ttk.Frame(crawl_options_frame)
+        thread_frame.grid(row=4, column=0, sticky="w")
+        ttk.Label(thread_frame, text="스레드 수:").grid(row=0, column=0)
+        ttk.Entry(thread_frame, textvariable=self.thread_count, width=5).grid(row=0, column=1, padx=5)
+
+        limit_frame = ttk.Frame(crawl_options_frame)
+        limit_frame.grid(row=5, column=0, sticky="w")
+        ttk.Label(limit_frame, text="이미지 제한(0=무제한):").grid(row=0, column=0)
+        ttk.Entry(limit_frame, textvariable=self.image_limit, width=5).grid(row=0, column=1, padx=5)
+
+        # 키워드 입력
+        keyword_frame = ttk.LabelFrame(crawling_frame, text="검색 키워드", padding=10)
+        keyword_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=5)
+
+        self.keyword = tk.StringVar()
+        ttk.Entry(keyword_frame, textvariable=self.keyword).grid(row=0, column=0, sticky="ew", padx=5)
+        
         # 실행 버튼
         self.run_button = ttk.Button(self.root, text="실행", command=self.run_processor)
-        self.run_button.grid(row=6, column=0, pady=10)
+        self.run_button.grid(row=7, column=0, pady=10)
         
     def browse_input(self):
         path = filedialog.askdirectory(title="입력 폴더 선택")
@@ -215,9 +271,14 @@ class LoraPreprocessorGUI:
         # 실행 버튼 비활성화
         self.run_button.configure(state="disabled")
         
-        # 별도 스레드에서 처리 실행
-        thread = threading.Thread(target=self._process_in_thread)
-        thread.start()
+        # 크롤링 모드인 경우
+        if self.mode.get() == "crawl_images":
+            thread = threading.Thread(target=self._crawl_in_thread)
+            thread.start()
+        else:
+            # 기존 이미지 처리 로직
+            thread = threading.Thread(target=self._process_in_thread)
+            thread.start()
 
     def _process_in_thread(self):
         try:
@@ -330,7 +391,7 @@ class LoraPreprocessorGUI:
             bool: 검증 성공 여부
         """
         # 중복 이미지 검사 모드나 텍스트만 생성 모드일 때는 출력 경로만 확인
-        if self.mode.get() in ["check_duplicates", "text_only", "rename_only"]:
+        if self.mode.get() in ["check_duplicates", "text_only", "rename_only", "crawl_images"]:
             if not self.output_path.get().strip():
                 messagebox.showerror("오류", "출력 폴더 경로를 지정해주세요.")
                 return False
@@ -370,6 +431,47 @@ class LoraPreprocessorGUI:
                 return False
             
         return True
+
+    def _crawl_in_thread(self):
+        try:
+            from AutoCrawler.crawler_main import AutoCrawler
+            from AutoCrawler.collect_links import CollectLinks
+            
+            # 출력 경로 정규화 - 절대 경로로 변환
+            output_path = Path(self.output_path.get()).absolute()
+            
+            # keywords.txt 파일 생성
+            keywords_path = output_path / 'keywords.txt'
+            keywords_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(keywords_path, 'w', encoding='utf-8') as f:
+                f.write(self.keyword.get())
+            
+            # 현재 작업 디렉토리를 출력 경로로 변경
+            os.chdir(str(output_path))
+            
+            crawler = AutoCrawler(
+                skip_already_exist=self.skip_existing.get(),
+                n_threads=int(self.thread_count.get()),
+                do_google=self.use_google.get(),
+                do_naver=self.use_naver.get(),
+                do_artstation=self.use_artstation.get(),
+                download_path=str(output_path),  # 절대 경로 문자열로 전달
+                full_resolution=self.full_resolution.get(),
+                face=self.face_search.get(),
+                no_gui=False,
+                limit=int(self.image_limit.get()),
+                filter_stock=self.filter_stock.get()
+            )
+            
+            crawler.do_crawling()
+            
+        except Exception as e:
+            self.process_error = str(e)
+            print(f"Error: {e}")  # 에러 메시지 출력
+        
+        # 작업 완료 후 GUI 업데이트
+        self.root.after(0, self._process_complete)
 
 if __name__ == "__main__":
     root = tk.Tk()

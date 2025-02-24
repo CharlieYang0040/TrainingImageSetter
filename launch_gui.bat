@@ -35,13 +35,13 @@ echo Python 인터프리터: "%VIRTUAL_ENV%\Scripts\python.exe"
 "%VIRTUAL_ENV%\Scripts\python.exe" -c "import sys; print('Python 버전:', sys.version)"
 echo.
 
-echo [Pillow 패키지 설치 확인]
+echo [필수 패키지 설치 확인]
 "%VIRTUAL_ENV%\Scripts\python.exe" -m pip install --upgrade pip
-"%VIRTUAL_ENV%\Scripts\python.exe" -m pip install --upgrade Pillow
+"%VIRTUAL_ENV%\Scripts\python.exe" -m pip install -r "%~dp0AutoCrawler\requirements.txt"
 echo.
 
-echo [PIL 임포트 테스트]
-"%VIRTUAL_ENV%\Scripts\python.exe" -c "from PIL import Image; print('PIL 임포트 성공')"
+echo [패키지 임포트 테스트]
+"%VIRTUAL_ENV%\Scripts\python.exe" -c "from PIL import Image; import requests; from selenium import webdriver; print('필수 패키지 임포트 성공')"
 echo.
 
 echo 가상환경이 활성화되었습니다.
