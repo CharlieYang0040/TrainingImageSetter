@@ -9,11 +9,15 @@ from main import ProcessManager, ProcessingMode
 from progress_tracker import ProgressTracker
 import threading
 import os
+import json
 
 class LoraPreprocessorGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("LoRA 학습용 이미지 전처리 도구")
+        
+        # 설정 파일 경로
+        self.config_path = Path("config.json")
         
         # 변수 초기화
         self.input_path = tk.StringVar()
@@ -28,87 +32,89 @@ class LoraPreprocessorGUI:
         self.padding_color = tk.StringVar(value="white")
         self.save_as_png = tk.BooleanVar(value=True)
         
+        # 저장된 설정 불러오기
+        self.load_config()
+        
         self.create_widgets()
         
     def create_widgets(self):
-        # 입력 경로
-        input_frame = ttk.LabelFrame(self.root, text="입력 경로", padding=10)
-        input_frame.grid(row=0, column=0, padx=10, pady=5, sticky="ew")
+        # 노트북(탭) 위젯 생성
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.grid(row=0, column=0, padx=10, pady=5, sticky="nsew")
+
+        # 기본 설정 탭
+        basic_tab = ttk.Frame(self.notebook)
+        self.notebook.add(basic_tab, text="기본 설정")
+
+        # 고급 설정 탭
+        advanced_tab = ttk.Frame(self.notebook)
+        self.notebook.add(advanced_tab, text="고급 설정")
+
+        # 크롤링 설정 탭
+        crawling_tab = ttk.Frame(self.notebook)
+        self.notebook.add(crawling_tab, text="크롤링 설정")
+
+        # === 기본 설정 탭 내용 ===
+        # 좌측 프레임
+        left_frame = ttk.Frame(basic_tab)
+        left_frame.grid(row=0, column=0, padx=5, pady=5, sticky="n")
+
+        # 경로 설정
+        path_frame = ttk.LabelFrame(left_frame, text="경로 설정", padding=10)
+        path_frame.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
         
-        ttk.Entry(input_frame, textvariable=self.input_path, width=50).grid(row=0, column=0, padx=5)
-        ttk.Button(input_frame, text="찾아보기", command=self.browse_input).grid(row=0, column=1)
+        ttk.Label(path_frame, text="입력:").grid(row=0, column=0, sticky="w")
+        ttk.Entry(path_frame, textvariable=self.input_path, width=30).grid(row=0, column=1, padx=5)
+        ttk.Button(path_frame, text="찾아보기", command=self.browse_input).grid(row=0, column=2)
         
-        # 출력 경로
-        output_frame = ttk.LabelFrame(self.root, text="출력 경로", padding=10)
-        output_frame.grid(row=1, column=0, padx=10, pady=5, sticky="ew")
-        
-        ttk.Entry(output_frame, textvariable=self.output_path, width=50).grid(row=0, column=0, padx=5)
-        ttk.Button(output_frame, text="찾아보기", command=self.browse_output).grid(row=0, column=1)
-        
+        ttk.Label(path_frame, text="출력:").grid(row=1, column=0, sticky="w")
+        ttk.Entry(path_frame, textvariable=self.output_path, width=30).grid(row=1, column=1, padx=5)
+        ttk.Button(path_frame, text="찾아보기", command=self.browse_output).grid(row=1, column=2)
+
         # 처리 모드
-        mode_frame = ttk.LabelFrame(self.root, text="처리 모드", padding=10)
-        mode_frame.grid(row=2, column=0, padx=10, pady=5, sticky="ew")
+        mode_frame = ttk.LabelFrame(left_frame, text="처리 모드", padding=10)
+        mode_frame.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
         
-        ttk.Radiobutton(mode_frame, text="이미지만 복사", 
-                       variable=self.mode, value="copy_only").grid(row=0, column=0, sticky="w")
-        ttk.Radiobutton(mode_frame, text="이미지 복사 + 텍스트 생성", 
-                       variable=self.mode, value="copy_and_text").grid(row=1, column=0, sticky="w")
-        ttk.Radiobutton(mode_frame, text="텍스트만 생성", 
-                       variable=self.mode, value="text_only").grid(row=2, column=0, sticky="w")
-        ttk.Radiobutton(mode_frame, text="중복 이미지 검사", 
-                       variable=self.mode, value="check_duplicates").grid(row=3, column=0, sticky="w")
-        ttk.Radiobutton(mode_frame, text="이름 변경만", 
-                       variable=self.mode, value="rename_only").grid(row=4, column=0, sticky="w")
-        ttk.Radiobutton(mode_frame, text="이미지 크롤링", 
-                       variable=self.mode, value="crawl_images").grid(row=5, column=0, sticky="w")
+        modes = [
+            ("이미지만 복사", "copy_only"),
+            ("이미지 복사 + 텍스트 생성", "copy_and_text"),
+            ("텍스트만 생성", "text_only"),
+            ("중복 이미지 검사", "check_duplicates"),
+            ("이름 변경만", "rename_only"),
+            ("이미지 크롤링", "crawl_images")
+        ]
         
+        for i, (text, value) in enumerate(modes):
+            ttk.Radiobutton(mode_frame, text=text, variable=self.mode, 
+                           value=value).grid(row=i, column=0, sticky="w")
+
+        # 우측 프레임
+        right_frame = ttk.Frame(basic_tab)
+        right_frame.grid(row=0, column=1, padx=5, pady=5, sticky="n")
+
         # 리사이즈 옵션
-        resize_frame = ttk.LabelFrame(self.root, text="리사이즈 옵션", padding=10)
-        resize_frame.grid(row=3, column=0, padx=10, pady=5, sticky="ew")
+        resize_frame = ttk.LabelFrame(right_frame, text="리사이즈 옵션", padding=10)
+        resize_frame.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
         
-        def update_resize_options(*args):
-            state = "normal" if self.resize_enabled.get() else "disabled"
-            size_combo["state"] = state
-            padding_combo["state"] = state
-            png_check["state"] = state
+        ttk.Checkbutton(resize_frame, text="이미지 리사이즈 활성화", 
+                        variable=self.resize_enabled).grid(row=0, column=0, columnspan=2, sticky="w")
         
-        # 리사이즈 활성화 체크박스
-        resize_check = ttk.Checkbutton(resize_frame, text="이미지 리사이즈 활성화", 
-                                     variable=self.resize_enabled, 
-                                     command=update_resize_options)
-        resize_check.grid(row=0, column=0, columnspan=2, sticky="w")
+        ttk.Label(resize_frame, text="크기:").grid(row=1, column=0, sticky="w")
+        ttk.Combobox(resize_frame, textvariable=self.resize_size, 
+                     values=["512", "1024"], width=8).grid(row=1, column=1, sticky="w")
         
-        # 리사이즈 크기 선택
-        ttk.Label(resize_frame, text="리사이즈 크기:").grid(row=1, column=0, sticky="w", padx=5)
-        size_combo = ttk.Combobox(resize_frame, textvariable=self.resize_size, 
-                                values=["512", "1024"], width=10, state="disabled")
-        size_combo.grid(row=1, column=1, sticky="w", padx=5)
+        ttk.Label(resize_frame, text="패딩:").grid(row=2, column=0, sticky="w")
+        ttk.Combobox(resize_frame, textvariable=self.padding_color,
+                     values=["white", "black", "transparent"], 
+                     width=8).grid(row=2, column=1, sticky="w")
         
-        # 패딩 색상 선택
-        ttk.Label(resize_frame, text="패딩 색상:").grid(row=2, column=0, sticky="w", padx=5)
-        padding_combo = ttk.Combobox(resize_frame, textvariable=self.padding_color,
-                                   values=["white", "black", "transparent"], 
-                                   width=10, state="disabled")
-        padding_combo.grid(row=2, column=1, sticky="w", padx=5)
-        
-        # PNG 저장 옵션
-        png_check = ttk.Checkbutton(resize_frame, text="PNG 파일로 저장", 
-                                  variable=self.save_as_png, state="disabled")
-        png_check.grid(row=3, column=0, columnspan=2, sticky="w")
-        
-        # 추가 옵션
-        options_frame = ttk.LabelFrame(self.root, text="추가 옵션", padding=10)
-        options_frame.grid(row=4, column=0, padx=10, pady=5, sticky="ew")
-        
-        ttk.Label(options_frame, text="작업자 스레드 수:").grid(row=0, column=0, sticky="w")
-        ttk.Entry(options_frame, textvariable=self.workers, width=5).grid(row=0, column=1, padx=5)
-        
-        ttk.Checkbutton(options_frame, text="디버그 모드", 
-                       variable=self.debug_mode).grid(row=1, column=0, sticky="w")
-        
-        # 이름 변경 옵션 프레임 추가
-        rename_frame = ttk.LabelFrame(self.root, text="이름 변경 옵션", padding=10)
-        rename_frame.grid(row=5, column=0, padx=10, pady=5, sticky="ew")
+        ttk.Checkbutton(resize_frame, text="PNG로 저장", 
+                        variable=self.save_as_png).grid(row=3, column=0, columnspan=2, sticky="w")
+
+        # === 고급 설정 탭 내용 ===
+        # 이름 변경 옵션
+        rename_frame = ttk.LabelFrame(advanced_tab, text="이름 변경 옵션", padding=10)
+        rename_frame.grid(row=0, column=0, padx=10, pady=5, sticky="ew")
         
         # 번호 매기기 체크박스
         self.use_numbering = tk.BooleanVar(value=True)  # 기본값 True
@@ -196,33 +202,39 @@ class LoraPreprocessorGUI:
         
         # 초기 상태 설정
         update_all_options()
-        
-        # 크롤링 옵션 프레임 추가
-        crawling_frame = ttk.LabelFrame(self.root, text="크롤링 옵션", padding=10)
-        crawling_frame.grid(row=6, column=0, padx=10, pady=5, sticky="ew")
 
+        # 추가 옵션
+        options_frame = ttk.LabelFrame(advanced_tab, text="추가 옵션", padding=10)
+        options_frame.grid(row=1, column=0, padx=10, pady=5, sticky="ew")
+        
+        ttk.Label(options_frame, text="작업자 스레드 수:").grid(row=0, column=0, sticky="w")
+        ttk.Entry(options_frame, textvariable=self.workers, width=5).grid(row=0, column=1, padx=5)
+        ttk.Checkbutton(options_frame, text="디버그 모드", 
+                        variable=self.debug_mode).grid(row=1, column=0, sticky="w")
+
+        # === 크롤링 설정 탭 내용 ===
         # 검색 엔진 선택
         self.use_google = tk.BooleanVar(value=True)
-        self.use_naver = tk.BooleanVar(value=True) 
+        self.use_naver = tk.BooleanVar(value=False) 
         self.use_artstation = tk.BooleanVar(value=False)
 
-        ttk.Checkbutton(crawling_frame, text="Google 검색",
+        ttk.Checkbutton(crawling_tab, text="Google 검색",
                         variable=self.use_google).grid(row=0, column=0, sticky="w", padx=5)
-        ttk.Checkbutton(crawling_frame, text="Naver 검색", 
+        ttk.Checkbutton(crawling_tab, text="Naver 검색", 
                         variable=self.use_naver).grid(row=1, column=0, sticky="w", padx=5)
-        ttk.Checkbutton(crawling_frame, text="ArtStation 검색",
+        ttk.Checkbutton(crawling_tab, text="ArtStation 검색",
                         variable=self.use_artstation).grid(row=2, column=0, sticky="w", padx=5)
 
         # 크롤링 상세 옵션
-        crawl_options_frame = ttk.Frame(crawling_frame)
+        crawl_options_frame = ttk.Frame(crawling_tab)
         crawl_options_frame.grid(row=0, column=1, rowspan=3, padx=10)
 
-        self.full_resolution = tk.BooleanVar(value=False)
+        self.full_resolution = tk.BooleanVar(value=True)
         self.face_search = tk.BooleanVar(value=False)
         self.skip_existing = tk.BooleanVar(value=True)
-        self.filter_stock = tk.BooleanVar(value=False)
-        self.thread_count = tk.StringVar(value="4")
-        self.image_limit = tk.StringVar(value="0")
+        self.filter_stock = tk.BooleanVar(value=True)
+        self.thread_count = tk.StringVar(value="8")
+        self.image_limit = tk.StringVar(value="20")
 
         ttk.Checkbutton(crawl_options_frame, text="고해상도 이미지 다운로드",
                         variable=self.full_resolution).grid(row=0, column=0, sticky="w")
@@ -244,7 +256,7 @@ class LoraPreprocessorGUI:
         ttk.Entry(limit_frame, textvariable=self.image_limit, width=5).grid(row=0, column=1, padx=5)
 
         # 키워드 입력
-        keyword_frame = ttk.LabelFrame(crawling_frame, text="검색 키워드", padding=10)
+        keyword_frame = ttk.LabelFrame(crawling_tab, text="검색 키워드", padding=10)
         keyword_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=5)
 
         self.keyword = tk.StringVar()
@@ -252,17 +264,46 @@ class LoraPreprocessorGUI:
         
         # 실행 버튼
         self.run_button = ttk.Button(self.root, text="실행", command=self.run_processor)
-        self.run_button.grid(row=7, column=0, pady=10)
+        self.run_button.grid(row=1, column=0, pady=10)
         
+        # 그리드 설정
+        self.root.grid_columnconfigure(0, weight=1)
+        basic_tab.grid_columnconfigure(1, weight=1)
+
+    def load_config(self):
+        """저장된 설정을 불러옵니다."""
+        try:
+            if self.config_path.exists():
+                with open(self.config_path, 'r', encoding='utf-8') as f:
+                    config = json.loads(f.read())
+                    self.input_path.set(config.get('input_path', ''))
+                    self.output_path.set(config.get('output_path', ''))
+        except Exception as e:
+            print(f"설정 파일 로드 중 오류 발생: {e}")
+
+    def save_config(self):
+        """현재 설정을 파일에 저장합니다."""
+        try:
+            config = {
+                'input_path': self.input_path.get(),
+                'output_path': self.output_path.get()
+            }
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"설정 파일 저장 중 오류 발생: {e}")
+
     def browse_input(self):
         path = filedialog.askdirectory(title="입력 폴더 선택")
         if path:
             self.input_path.set(path)
+            self.save_config()  # 경로 선택 시 설정 저장
             
     def browse_output(self):
         path = filedialog.askdirectory(title="출력 폴더 선택")
         if path:
             self.output_path.set(path)
+            self.save_config()  # 경로 선택 시 설정 저장
             
     def run_processor(self):
         if not self.validate_inputs():
