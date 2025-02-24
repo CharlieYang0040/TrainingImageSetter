@@ -27,4 +27,6 @@ __pycache__
 *.tmp
 *.tmp.*
 
+# 설정 파일 무시
+config.json
 

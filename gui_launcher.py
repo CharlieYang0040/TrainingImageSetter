@@ -233,6 +233,7 @@ class LoraPreprocessorGUI:
         self.face_search = tk.BooleanVar(value=False)
         self.skip_existing = tk.BooleanVar(value=True)
         self.filter_stock = tk.BooleanVar(value=True)
+        self.use_gui = tk.BooleanVar(value=False)  # GUI 사용 여부 변수 추가
         self.thread_count = tk.StringVar(value="8")
         self.image_limit = tk.StringVar(value="20")
 
@@ -244,14 +245,16 @@ class LoraPreprocessorGUI:
                         variable=self.skip_existing).grid(row=2, column=0, sticky="w")
         ttk.Checkbutton(crawl_options_frame, text="스톡 이미지 필터링",
                         variable=self.filter_stock).grid(row=3, column=0, sticky="w")
+        ttk.Checkbutton(crawl_options_frame, text="크롤링 진행창 표시",  # GUI 옵션 추가
+                        variable=self.use_gui).grid(row=4, column=0, sticky="w")
 
         thread_frame = ttk.Frame(crawl_options_frame)
-        thread_frame.grid(row=4, column=0, sticky="w")
+        thread_frame.grid(row=5, column=0, sticky="w")  # row 번호 조정
         ttk.Label(thread_frame, text="스레드 수:").grid(row=0, column=0)
         ttk.Entry(thread_frame, textvariable=self.thread_count, width=5).grid(row=0, column=1, padx=5)
 
         limit_frame = ttk.Frame(crawl_options_frame)
-        limit_frame.grid(row=5, column=0, sticky="w")
+        limit_frame.grid(row=6, column=0, sticky="w")
         ttk.Label(limit_frame, text="이미지 제한(0=무제한):").grid(row=0, column=0)
         ttk.Entry(limit_frame, textvariable=self.image_limit, width=5).grid(row=0, column=1, padx=5)
 
@@ -297,17 +300,18 @@ class LoraPreprocessorGUI:
         path = filedialog.askdirectory(title="입력 폴더 선택")
         if path:
             self.input_path.set(path)
-            self.save_config()  # 경로 선택 시 설정 저장
             
     def browse_output(self):
         path = filedialog.askdirectory(title="출력 폴더 선택")
         if path:
             self.output_path.set(path)
-            self.save_config()  # 경로 선택 시 설정 저장
             
     def run_processor(self):
         if not self.validate_inputs():
             return
+            
+        # 설정 저장
+        self.save_config()
             
         # 실행 버튼 비활성화
         self.run_button.configure(state="disabled")
@@ -497,10 +501,10 @@ class LoraPreprocessorGUI:
                 do_google=self.use_google.get(),
                 do_naver=self.use_naver.get(),
                 do_artstation=self.use_artstation.get(),
-                download_path=str(output_path),  # 절대 경로 문자열로 전달
+                download_path=str(output_path),
                 full_resolution=self.full_resolution.get(),
                 face=self.face_search.get(),
-                no_gui=False,
+                no_gui=not self.use_gui.get(),  # GUI 사용 여부 반영
                 limit=int(self.image_limit.get()),
                 filter_stock=self.filter_stock.get()
             )
